@@ -122,6 +122,12 @@
       .markdown-body pre code { background: #0b1220; }
       .title-badge { background: rgba(255,255,255,0.06); }
     }
+
+    /* 可选：禁止图片拖拽（保留选中与点击） */
+    img {
+      -webkit-user-drag: none;
+      user-drag: none;
+    }
   </style>
 
   <!-- CDN：marked 用于 Markdown 渲染，DOMPurify 用于安全清理 -->
@@ -247,7 +253,6 @@
         const html = renderMarkdown(text);
         contentEl.innerHTML = html && html.trim() !== '' ? html : '<p><em>暂无内容</em></p>';
 
-        // 不显示段数，仅简短状态（或直接清空）
         statusEl.textContent = '已加载';
       } catch (err) {
         console.error(err);
@@ -274,8 +279,6 @@
 
         const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-        // 解析规则：每行第一个字符串为“名称”，第二个字符串为“称号”
-        // 用空白分割，余下的如果用户后续扩展，这里也能兼容（仅取前两段）
         const items = lines.map(line => {
           const parts = line.split(/\s+/);
           const name = parts[0] || '';
@@ -289,7 +292,6 @@
           return;
         }
 
-        // 渲染为列表
         const ul = document.createElement('ul');
         ul.className = 'mentions-list';
         items.forEach(({ name, title }) => {
@@ -328,6 +330,38 @@
       window.addEventListener('keydown', handler, { capture: true });
     }
 
+    // 仅阻止 Ctrl/Cmd+C、右键菜单与拖拽（保留选中和链接点击）
+    function limitCopyButKeepSelection() {
+      // 1) 禁用右键菜单
+      document.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+      }, { capture: true });
+
+      // 2) 禁用拖拽（避免拖走图片/文本）
+      document.addEventListener('dragstart', (e) => {
+        e.preventDefault();
+      }, { capture: true });
+
+      // 3) 禁用复制快捷键：Ctrl/Cmd + C
+      document.addEventListener('keydown', (e) => {
+        const isMac = navigator.platform.toUpperCase().includes('MAC');
+        const key = (e.key || '').toLowerCase();
+
+        const withCmd = isMac && e.metaKey;
+        const withCtrl = !isMac && e.ctrlKey;
+        if ((withCmd || withCtrl) && key === 'c') {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }, { capture: true });
+
+      // 4) 可选：阻止显式复制事件（例如浏览器编辑菜单触发）
+      document.addEventListener('copy', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }, { capture: true });
+    }
+
     function init() {
       applyTheme();
 
@@ -344,6 +378,10 @@
       // 默认打开主页面；如需默认打开提及次数，请换成 switchView('mentions')
       switchView('home');
 
+      // 保护策略：不影响选中与链接点击
+      limitCopyButKeepSelection();
+
+      // 保留之前的禁用保存快捷键
       disableSaveShortcut();
     }
 
